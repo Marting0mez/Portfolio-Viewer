@@ -582,10 +582,6 @@ st.markdown(
   <div style="display:flex; align-items:center; justify-content:space-between; gap:16px;">
     <div>
       <h1>Portafolio Inversiones Lectures</h1>
-      <div class="sub">
-        Visor profesional sincronizado con las operaciones del fondo. 
-        Posiciones, composición y evolución histórica sin permitir cambios en los datos.
-      </div>
     </div>
     <div class="chip">👁 Modo: <b>Lectura</b></div>
   </div>
