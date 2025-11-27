@@ -2,8 +2,8 @@
 # ------------------------------------------------------------
 # Portafolio Inversiones Lectures — VISOR SOLO LECTURA
 # - Lee trades y aliases desde Google Sheets (URLs en st.secrets)
-# - Replica la UI del tracker (hero, KPIs, tablas y gráficos)
-# - SIN CRUD ni edición: solo visualización
+# - UI similar al tracker: hero, KPIs, tablas y gráficos
+# - Solo lectura: no hay edición de datos
 # ------------------------------------------------------------
 from datetime import date, timedelta, datetime
 from typing import Dict, Optional, Tuple, List
@@ -141,10 +141,61 @@ def find_secret(possible_keys: List[str]) -> str:
 
 @st.cache_data(ttl=300, show_spinner=True)
 def load_trades() -> pd.DataFrame:
+    """
+    Carga el CSV de trades desde la URL en secrets y normaliza:
+    - nombres de columnas en minúscula
+    - intenta detectar columna de fecha aunque tenga otro nombre
+    - garantiza que exista 'trade_date'
+    """
     url = find_secret(["TRADES_CSV_URL", "trades_csv_url", "TRADES_URL", "trades_url"])
     df = pd.read_csv(url)
+
     # normalizar nombres de columnas
     df.columns = [str(c).strip().lower() for c in df.columns]
+
+    # intentar detectar la columna de fecha si no se llama exactamente 'trade_date'
+    if "trade_date" not in df.columns:
+        possible_date_cols = {
+            "trade_date",
+            "trade date",
+            "fecha",
+            "fecha_operacion",
+            "fecha operación",
+            "date",
+        }
+        detected = None
+        for c in df.columns:
+            if c.strip().lower() in possible_date_cols:
+                detected = c
+                break
+        if detected is not None and detected != "trade_date":
+            df = df.rename(columns={detected: "trade_date"})
+
+    # si aun así no hay 'trade_date', mostramos mensaje y devolvemos DF vacío estándar
+    if "trade_date" not in df.columns:
+        st.error(
+            "No encontré una columna de fecha de operación en el CSV de *trades*.\n\n"
+            "Asegúrate de que el encabezado incluya una columna llamada `trade_date` "
+            "o alguna de estas variantes: `trade date`, `fecha`, `fecha_operacion`, `date`."
+        )
+        return pd.DataFrame(
+            columns=[
+                "id",
+                "portfolio",
+                "name",
+                "ticker",
+                "asset_class",
+                "trade_date",
+                "action",
+                "quantity",
+                "price",
+                "currency",
+                "fees",
+                "notes",
+            ]
+        )
+
+    # mapeo y tipos
     rename_map = {
         "portfolio": "portfolio",
         "name": "name",
@@ -160,12 +211,12 @@ def load_trades() -> pd.DataFrame:
     }
     df = df.rename(columns=rename_map)
 
-    # id si no existe
+    # crear id si no existe
     if "id" not in df.columns:
         df.insert(0, "id", range(1, len(df) + 1))
 
-    if "trade_date" in df.columns:
-        df["trade_date"] = pd.to_datetime(df["trade_date"], errors="coerce").dt.date
+    # tipos
+    df["trade_date"] = pd.to_datetime(df["trade_date"], errors="coerce").dt.date
 
     for c in ["quantity", "price", "fees"]:
         if c in df.columns:
