@@ -1,12 +1,11 @@
 # streamlit_app.py
 # ------------------------------------------------------------
 # Portafolio Inversiones Lectures — VISOR SOLO LECTURA
-# - Lee trades y aliases desde Google Sheets (URLs en st.secrets)
-# - UI similar al tracker: hero, KPIs, tablas y gráficos
-# - Solo lectura: no hay edición de datos
 # ------------------------------------------------------------
-from datetime import date, timedelta, datetime
-from typing import Dict, Optional, Tuple, List
+
+from datetime import date, timedelta
+from io import StringIO
+from typing import Dict, Optional, List
 
 import numpy as np
 import pandas as pd
@@ -143,17 +142,32 @@ def find_secret(possible_keys: List[str]) -> str:
 def load_trades() -> pd.DataFrame:
     """
     Carga el CSV de trades desde la URL en secrets y normaliza:
-    - nombres de columnas en minúscula
+    - maneja el caso 'CSV dentro de una sola columna'
+    - normaliza nombres de columnas
     - intenta detectar columna de fecha aunque tenga otro nombre
     - garantiza que exista 'trade_date'
     """
     url = find_secret(["TRADES_CSV_URL", "trades_csv_url", "TRADES_URL", "trades_url"])
+
+    # 1) Lectura normal
     df = pd.read_csv(url)
 
-    # normalizar nombres de columnas
+    # 2) Fallback: si parece que TODO el CSV viene en una sola columna, lo re-parseamos
+    if df.shape[1] == 1:
+        first_cell = str(df.iloc[0, 0]) if not df.empty else ""
+        colname = str(df.columns[0])
+        # Si vemos comas y la palabra trade_date, asumimos que el CSV entero está ahí
+        if ("trade_date" in first_cell or "trade_date" in colname) and (
+            "," in first_cell or "," in colname
+        ):
+            raw_lines = [colname] + df.iloc[:, 0].astype(str).tolist()
+            text = "\n".join(raw_lines)
+            df = pd.read_csv(StringIO(text))
+
+    # 3) Normalización de nombres de columnas
     df.columns = [str(c).strip().lower() for c in df.columns]
 
-    # intentar detectar la columna de fecha si no se llama exactamente 'trade_date'
+    # 4) Intentar detectar la columna de fecha si no se llama exactamente 'trade_date'
     if "trade_date" not in df.columns:
         possible_date_cols = {
             "trade_date",
@@ -171,7 +185,7 @@ def load_trades() -> pd.DataFrame:
         if detected is not None and detected != "trade_date":
             df = df.rename(columns={detected: "trade_date"})
 
-    # si aun así no hay 'trade_date', mostramos mensaje y devolvemos DF vacío estándar
+    # 5) Si AÚN así no hay trade_date, mostramos mensaje y devolvemos DF estándar vacío
     if "trade_date" not in df.columns:
         st.error(
             "No encontré una columna de fecha de operación en el CSV de *trades*.\n\n"
@@ -195,7 +209,7 @@ def load_trades() -> pd.DataFrame:
             ]
         )
 
-    # mapeo y tipos
+    # 6) Mapeo final y tipos
     rename_map = {
         "portfolio": "portfolio",
         "name": "name",
@@ -211,11 +225,11 @@ def load_trades() -> pd.DataFrame:
     }
     df = df.rename(columns=rename_map)
 
-    # crear id si no existe
+    # Crear id si no existe
     if "id" not in df.columns:
         df.insert(0, "id", range(1, len(df) + 1))
 
-    # tipos
+    # Tipos
     df["trade_date"] = pd.to_datetime(df["trade_date"], errors="coerce").dt.date
 
     for c in ["quantity", "price", "fees"]:
@@ -605,10 +619,8 @@ price_raw = (
     else pd.DataFrame()
 )
 
-# cripto → calendario diario con ffill
 def has_crypto_in(tks):
     return any(str(t).upper().endswith("-USD") for t in tks)
-
 
 price_panel = (
     align_calendar_union_ffill(price_raw)
@@ -702,7 +714,6 @@ with tab_positions:
                 positions, price_panel, asof, alias_df, rates_last
             )
 
-            # Valor de posición en USD/COP por fila
             def _val_usd(row):
                 mv, cur = row["market_value"], row["currency"]
                 v = (
@@ -727,7 +738,6 @@ with tab_positions:
             total_usd = float(np.nansum(pos_with_px["valor_pos_usd"].values))
             total_cop = float(np.nansum(pos_with_px["valor_pos_cop"].values))
 
-            # Inversión total en USD para PnL
             def _inv_usd(row):
                 inv, cur = row["invested"], row["currency"]
                 v = (
@@ -771,7 +781,6 @@ with tab_positions:
                     unsafe_allow_html=True,
                 )
 
-            # Tabla pro con badges y colores (sin columna de portafolio)
             df_show = (
                 pos_with_px[
                     [
@@ -898,7 +907,7 @@ with tab_portfolio:
                 )
 
             with right:
-                st.empty()  # espaciador
+                st.empty()
 
             st.subheader(f"Composición del portafolio (en {currency_for_pie})")
             parts = [(n, v) for (n, v) in parts if pd.notna(v) and v > 0]
