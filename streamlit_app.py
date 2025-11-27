@@ -20,7 +20,7 @@ import plotly.graph_objects as go
 
 st.set_page_config(
     page_title="Portafolio Inversiones Lectures",
-    page_icon="👀",
+    page_icon="📈",
     layout="wide",
 )
 
