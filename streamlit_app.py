@@ -375,7 +375,7 @@ def convert_value(
     return None
 
 
-# ========================== Posiciones (FIFO) ==========================
+# ========================== Posiciones ==========================
 def build_positions_fifo(trades: pd.DataFrame) -> pd.DataFrame:
     if trades.empty:
         return pd.DataFrame(
