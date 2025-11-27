@@ -696,7 +696,7 @@ tab_positions, tab_portfolio, tab_prices = st.tabs(
 # ========================== TAB — Posiciones ==========================
 with tab_positions:
     st.markdown(
-        '<h3 class="section-title">Posiciones abiertas (FIFO)</h3><hr class="sep">',
+        '<h3 class="section-title">Posiciones abiertas</h3><hr class="sep">',
         unsafe_allow_html=True,
     )
     if trades.empty:
